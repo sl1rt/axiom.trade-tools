@@ -134,13 +134,13 @@ export function axiomPage(
         const w=cfg.wallets.indexOf(query);
         if(w<0||cfg.searchMode==='missing'){results.textContent='No wallets found';return;}
         const wallet=cfg.wallets[w], row=document.createElement('div');row.className='cursor-pointer';
-        row.innerHTML='<div><span><button aria-label="Copy address"><span>'+wallet.slice(0,4)+'...'+wallet.slice(-4)+'</span><i class="ri-file-copy-line"></i></button></span></div><span>PnL $100 Win 50%</span>';
-        row.querySelector('button').onclick=e=>{
+        row.innerHTML='<button type="button" aria-label="View wallet '+wallet.slice(0,4)+'...'+wallet.slice(-4)+'"></button><div><span><button aria-label="Copy address"><span>'+wallet.slice(0,4)+'...'+wallet.slice(-4)+'</span><i class="ri-file-copy-line"></i></button></span></div><span>PnL $100 Win 50%</span>';
+        row.querySelector('button[aria-label="Copy address"]').onclick=e=>{
           e.stopPropagation();
           const value=cfg.searchMode==='wrong-result'?wallet.slice(0,10)+(wallet[10]==='a'?'b':'a')+wallet.slice(11):wallet;
           navigator.clipboard.writeText(value);
         };
-        row.onclick=()=>{
+        row.querySelector('button[aria-label^="View wallet"]').onclick=()=>{
           log('Search result:'+w);search.remove();openWallet(cfg.searchMode==='wrong-modal'?(w+1)%3:w);
           if(cfg.searchMode==='wrong-chain')document.querySelector('#modal button[aria-label^="Open in"]').setAttribute('aria-label',cfg.chain==='bnb'?'Open in RH Scan':'Open in BSCScan');
         };

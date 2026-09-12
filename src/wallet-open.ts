@@ -147,7 +147,11 @@ export async function openWalletFromSearch(
   requireSearch();
   if (!result.row.isConnected) throw new UiError('Результат поиска изменился. Повторите открытие.');
   progress('Открываю History кошелька…');
-  result.row.click();
+  // The row is a layout container. Axiom handles clicks on its overlay button.
+  const open = result.row.querySelector<HTMLButtonElement>('button[aria-label^="View wallet"]');
+  if (!open || !visible(open) || open.disabled)
+    throw new UiError('В результате поиска не найдена кнопка View wallet. Повторите открытие.');
+  open.click();
   const modal = await waitForDom(
     () => {
       check();

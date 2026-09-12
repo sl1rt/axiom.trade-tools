@@ -177,7 +177,7 @@ export class Panel {
     this.shadow.innerHTML = `<style>${css}</style>
       <button class="launcher ${this.open ? 'hidden' : ''}" data-action="toggle"><span class="mark">↗</span>Early Wallets${this.running ? '<span class="pulse"></span>' : ''}</button>
       <aside class="panel ${this.open ? '' : 'hidden'}" aria-label="Axiom Early Wallets">
-      <header class="header"><span class="mark">↗</span><div><div class="eyebrow">ЧЕРЕЗ ИНТЕРФЕЙС · 0.3.7</div><h1>Early Wallets</h1></div><button class="close" data-action="toggle" aria-label="Свернуть">×</button></header>
+      <header class="header"><span class="mark">↗</span><div><div class="eyebrow">ЧЕРЕЗ ИНТЕРФЕЙС · 0.3.8</div><h1>Early Wallets</h1></div><button class="close" data-action="toggle" aria-label="Свернуть">×</button></header>
       <div class="body"><div class="context"><div><div class="token-name">${esc(ctx.symbol || ctx.name || 'Первые покупатели')}</div><div class="small muted" title="${esc(ctx.address)}">${esc(short(ctx.address))}</div></div><span class="chain">${chainName[ctx.chain]}</span></div>
       <div class="settings"><label for="ew-wallet-limit">Кошельков<input id="ew-wallet-limit" name="walletLimit" type="number" min="1" max="200" value="${this.draft.walletLimit}" ${this.running ? 'disabled' : ''}></label><label for="ew-token-limit">Других токенов<input id="ew-token-limit" name="tokensPerWallet" type="number" min="1" max="20" value="${this.draft.tokensPerWallet}" ${this.running ? 'disabled' : ''}></label></div>
       <p class="rule">Age ↑ → History · Max → Opened ↓<br>Свежие открытия с покупками. Fresh-кошельки и исходный токен пропускаются.${this.running ? '<br>Дождитесь завершения: не меняйте таблицу и модалку.' : ''}</p>
