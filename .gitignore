@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.research/
+test-results*/
+playwright-report/
+*.zip
+.agents/
+.codex/
+.idea/
+artifacts/
+.env
+.env.*
+*.log
+skills-lock.json
