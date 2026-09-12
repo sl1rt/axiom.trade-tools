@@ -21,6 +21,8 @@ export interface Buyer {
   firstBuyAt: number;
   tradeId: string;
   firstBuyLabel?: string;
+  firstBuyTotalLabel?: string;
+  firstBuyAmountLabel?: string;
   fresh?: boolean;
 }
 export interface HistoryToken extends TokenRef {

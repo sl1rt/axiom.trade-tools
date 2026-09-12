@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { compactUsd, readQuoteFromPage } from '../../src/dom';
-import { isFreshTrader, relativeTime } from '../../src/ui-source';
+import { isFreshTrader, relativeTime, tradeRows } from '../../src/ui-source';
 import { copyAddressFromUi } from '../../src/copy-address';
 import { evm, historyToken } from '../fixtures';
 import { marketCapHeader } from '../ui-fixture';
@@ -143,4 +143,40 @@ describe('scoped wallet Copy action', () => {
 
 it.each(['10dago', '10d ago'])('preserves approximate age for DOM label %s', (label) => {
   expect(relativeTime(label, 2_000_000_000_000)).toBe(2_000_000_000_000 - 10 * 86400000);
+});
+
+describe('first purchase amounts from Trades', () => {
+  it.each([
+    { total: '$1.27K', amount: '279M' },
+    { total: '0.42 BNB', amount: '5M' },
+    { total: '0.5', amount: '1,234' },
+  ])(
+    'keeps the displayed Total and Amount separate from MC: $total / $amount',
+    ({ total, amount }) => {
+      const dom = new JSDOM(
+        `<div><div><span class="text-increase">${total}</span></div><div><span>$4.49K</span></div><div><span>${amount}</span></div><div><button>Trader</button></div><div><a href="https://rh-scan.com/tx/first">2h</a></div></div>`,
+      );
+      vi.stubGlobal('document', dom.window.document);
+      vi.spyOn(dom.window.Element.prototype, 'getClientRects').mockReturnValue([
+        {},
+      ] as unknown as DOMRectList);
+      const rows = tradeRows(dom.window.document);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ buy: true, totalLabel: total, amountLabel: amount });
+      dom.window.close();
+    },
+  );
+  it('keeps the buyer eligible but never substitutes MC when Amount is missing', () => {
+    const dom = new JSDOM(
+      '<div><div><span class="text-increase">$100</span></div><div>$4.49K</div><div><button>Trader</button></div><div><a href="https://bscscan.com/tx/first">2h</a></div></div>',
+    );
+    vi.stubGlobal('document', dom.window.document);
+    vi.spyOn(dom.window.Element.prototype, 'getClientRects').mockReturnValue([
+      {},
+    ] as unknown as DOMRectList);
+    const rows = tradeRows(dom.window.document);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ buy: true, amountLabel: undefined });
+    dom.window.close();
+  });
 });

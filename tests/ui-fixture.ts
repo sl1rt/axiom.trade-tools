@@ -50,14 +50,14 @@ export function axiomPage(
   return `<!doctype html><html><head><title>T${n} ↑ $50K | Axiom ${chain}</title><style>
   body{background:#0b0c12;color:#ddd;font:14px Arial;margin:24px}button{background:#292c38;color:white;padding:8px;border:0;cursor:pointer}a{color:#b0dbff}.text-increase{color:#6ee799}.text-decrease{color:#ef6d78}.text-textTertiary{color:#999}.text-textSecondary{color:#aaa}.text-textPrimary{color:#fff}.overflow-y-auto{overflow-y:auto}#trades{height:160px;width:640px}.trade{height:24px;display:flex;gap:16px;align-items:center}.trade button{padding:0}#modal{position:fixed;left:12px;top:130px;background:#161823;border:1px solid #555;padding:14px;width:700px;z-index:99}#positions{height:220px}.position{height:60px;min-height:60px;display:flex;gap:15px}.position>a{width:150px}.position>div{width:100px}.position span{display:block}#head{display:flex;gap:8px;margin-bottom:20px}
   </style></head><body><h1>AXIOM · UI test fixture</h1><h2>T${n}　$50K</h2><a href="https://${explorer}/${chain === 'sol' ? 'token' : 'address'}/${addr(chain, n)}">CA</a>${marketCapHeader('$50K', '$125K')}
-  <button id="search">Search by token or CA /</button><section><div><button>All</button><button>Trades</button><button id="age">Age ↓</button></div><div id="trades" class="overflow-y-auto"></div></section>
+  <button id="search">Search by token or CA /</button><section><div><button>All</button><button>Trades</button><span>Total</span><span>MC</span><span>Amount</span><span>Trader</span><button id="age">Age ↓</button></div><div id="trades" class="overflow-y-auto"></div></section>
   <script>
   const cfg=${JSON.stringify(config)};
   const log = value => {document.body.dataset.actions = (document.body.dataset.actions || '') + value + '|';};
-  const trades = [{w:3,b:false},{w:0,b:true},{w:0,b:true},{w:1,b:true},{w:2,b:true}];
+  const trades = [{w:3,b:false,total:'$999',amount:'99M'},{w:0,b:true,total:'$1.27K',amount:'279M'},{w:0,b:true,total:'$900',amount:'45M'},{w:1,b:true,total:'$200',amount:'10M'},{w:2,b:true,total:'$300',amount:'15M'}];
   const renderTrades = () => {
     const ascending = document.querySelector('#age').textContent.includes('↑');
-    document.querySelector('#trades').innerHTML = (ascending ? trades.map((t,i)=>({...t,i})) : trades.map((t,i)=>({...t,i})).reverse()).map(t => '<div class="trade"><span class="'+(t.b?'text-increase':'text-decrease')+'">$100</span><span>$20K</span><button data-trader="'+t.w+'">Trader '+t.w+'</button><a href="https://'+cfg.explorer+'/tx/tx'+t.i+'">10d</a></div>').join('');
+    document.querySelector('#trades').innerHTML = (ascending ? trades.map((t,i)=>({...t,i})) : trades.map((t,i)=>({...t,i})).reverse()).map(t => '<div class="trade"><div><span class="'+(t.b?'text-increase':'text-decrease')+'">'+t.total+'</span></div><div><span>$20K</span></div><div><span>'+t.amount+'</span></div><div><button data-trader="'+t.w+'">Trader '+t.w+'</button></div><div><a href="https://'+cfg.explorer+'/tx/tx'+t.i+'">10d</a></div></div>').join('');
     document.querySelectorAll('[data-trader]').forEach(button=>{
       const firstBuy=document.createElement('i');firstBuy.className='ri-bard-fill';firstBuy.title='First Buy';firstBuy.textContent='*';button.append(firstBuy);
       if(cfg.freshWallet&&button.dataset.trader==='0'){

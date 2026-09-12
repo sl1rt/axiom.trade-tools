@@ -41,6 +41,9 @@ export async function loadScan(context: TokenContext): Promise<ScanState | null>
         buyers.has(buyer.address) ||
         !Number.isFinite(buyer.firstBuyAt) ||
         typeof buyer.tradeId !== 'string' ||
+        [buyer.firstBuyTotalLabel, buyer.firstBuyAmountLabel].some(
+          (label) => label !== undefined && (typeof label !== 'string' || label.length > 80),
+        ) ||
         (buyer.fresh !== undefined && typeof buyer.fresh !== 'boolean')
       )
         return null;

@@ -102,3 +102,19 @@ it('rejects mismatched chain history and false empty-wallet states', async () =>
   second.wallets[0]!.status = 'excluded';
   expect(await loadScan(context())).toBeNull();
 });
+
+it('preserves optional first purchase labels without converting displayed units', async () => {
+  const state = stored();
+  state.buyers[0]!.firstBuyTotalLabel = '0.42 BNB';
+  state.buyers[0]!.firstBuyAmountLabel = '279M';
+  const result = await loadScan(context());
+  expect(result?.buyers[0]).toMatchObject({
+    firstBuyTotalLabel: '0.42 BNB',
+    firstBuyAmountLabel: '279M',
+  });
+});
+it('rejects corrupt first purchase labels', async () => {
+  const state = stored();
+  Object.assign(state.buyers[0]!, { firstBuyAmountLabel: { value: 279 } });
+  expect(await loadScan(context())).toBeNull();
+});

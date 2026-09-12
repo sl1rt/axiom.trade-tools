@@ -350,7 +350,31 @@ td .address {
 .details div {
   padding: 4px 0;
 }
+.wallet-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.wallet-amount {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 46%;
+  color: #c8f5a6;
+  text-align: right;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.wallet-amount span {
+  display: block;
+}
+.wallet-amount .wallet-source {
+  color: #99a9be;
+}
 .wallet-link {
+  flex: 1;
+  min-width: 0;
   display: inline-block;
   max-width: 100%;
   padding: 4px 0;

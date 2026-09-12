@@ -277,6 +277,12 @@ for (const chain of ['bnb', 'sol', 'robinhood'] as const)
     await expect.poll(() => extension.pages().length).toBe(tabs);
     await row.getByRole('button').click();
     await expect(page.getByText(addr(chain, 100), { exact: true })).toBeVisible();
+    const entry = (n: number) =>
+      page.locator('.wallet-entry').filter({ has: walletButton(page, chain, n) });
+    await expect(entry(100).locator('.wallet-amount')).toHaveText('Total: $1.27KAmount: 279M(T1)');
+    await expect(entry(101).locator('.wallet-amount')).toHaveText('Total: $200Amount: 10M(T1)');
+    await page.getByText('Причины пропуска (1)', { exact: true }).click();
+    await expect(entry(102).locator('.wallet-amount')).toHaveText('Total: $300Amount: 15M(T1)');
     if (chain === 'bnb') {
       await mkdir('artifacts', { recursive: true });
       await page.screenshot({ path: 'artifacts/extension-preview.png' });
@@ -286,6 +292,17 @@ for (const chain of ['bnb', 'sol', 'robinhood'] as const)
       const data = JSON.parse(await readFile((await download.path())!, 'utf8'));
       expect(data.version).toBe(5);
       expect(data.quoteMetric).toBe('ath-market-cap');
+      expect(
+        data.buyers.map((buyer: { firstBuyTotalLabel: string; firstBuyAmountLabel: string }) => [
+          buyer.firstBuyTotalLabel,
+          buyer.firstBuyAmountLabel,
+        ]),
+      ).toEqual([
+        ['$1.27K', '279M'],
+        ['$200', '10M'],
+        ['$300', '15M'],
+      ]);
+      expect(data.wallets[0].buyer.firstBuyAmountLabel).toBe('279M');
       expect(
         Object.values(data.quotes).every(
           (q: any) => q.source === 'axiom-page-ath' && q.usd === 125000,
@@ -302,6 +319,13 @@ for (const chain of ['bnb', 'sol', 'robinhood'] as const)
     await page.reload();
     await page.getByRole('button', { name: 'Early Wallets', exact: false }).click();
     await expect(page.getByRole('status')).toHaveText('Готово');
+    await page.getByRole('button', { name: 'Показать 2 кошельков: T2', exact: true }).click();
+    await expect(entry(100).locator('.wallet-amount')).toHaveText('Total: $1.27KAmount: 279M(T1)');
+    await expect(entry(101).locator('.wallet-amount')).toHaveText('Total: $200Amount: 10M(T1)');
+    await walletButton(page, chain, 100).click();
+    await expect(page.locator('[data-wallet-message]')).toHaveText(
+      'History кошелька открыта в Axiom.',
+    );
   });
 test('resume after reload skips completed wallet histories', async ({ extension }) => {
   const { page } = await setup(extension, 'bnb');
@@ -515,6 +539,10 @@ for (const chain of ['bnb', 'sol', 'robinhood'] as const)
     'wallet links open saved addresses through Axiom search: ' + chain,
     async ({ extension }) => {
       const { page, unexpected } = await savedWallets(extension, chain, { closeDelayMs: 300 });
+      await expect(page.locator('.wallet-amount')).toHaveText([
+        'Вход: нет данных(SOURCE)',
+        'Вход: нет данных(SOURCE)',
+      ]);
       await walletButton(page, chain, 101).click();
       await expect(page.locator('[data-wallet-message]')).toHaveText(
         'History кошелька открыта в Axiom.',

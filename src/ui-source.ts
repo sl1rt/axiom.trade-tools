@@ -96,6 +96,8 @@ export function tradeRows(root: ParentNode = document) {
     buy: boolean;
     fresh: boolean;
     age: string;
+    totalLabel?: string;
+    amountLabel?: string;
   }[] = [];
   for (const link of root.querySelectorAll<HTMLAnchorElement>('a[href]')) {
     if (!txLink(link) || !visible(link)) continue;
@@ -109,19 +111,33 @@ export function tradeRows(root: ParentNode = document) {
     )
       continue;
     const button = row.querySelector<HTMLButtonElement>('button');
-    const amount = row.querySelector<HTMLElement>(
+    const total = row.querySelector<HTMLElement>(
       '[class*="text-increase"], [class*="text-decrease"]',
     );
-    if (!button || !amount || row.getBoundingClientRect().height > 100) continue;
+    if (!button || !total || row.getBoundingClientRect().height > 100) continue;
+    // Observed Trades columns: Total | MC | Amount | Trader | Age.
+    // Check the row shape before reading Amount so a missing column never yields MC.
+    const cells = [...row.children];
+    const hasAmounts =
+      cells.length === 5 &&
+      cells[0]!.contains(total) &&
+      cells[3]!.contains(button) &&
+      cells[4]!.contains(link);
+    const label = (cell: Element) => {
+      const value = text(cell);
+      return visible(cell) && /\d/.test(value) && value.length <= 80 ? value : undefined;
+    };
     // Include the rendered quantities to distinguish multiple swaps in one transaction.
     const id = `${link.href}|${text(row).replace(text(link), '').trim()}`;
     rows.push({
       id,
       row,
       button,
-      buy: amount.className.includes('text-increase'),
+      buy: total.className.includes('text-increase'),
       fresh: isFreshTrader(row),
       age: text(link),
+      totalLabel: hasAmounts ? label(cells[0]!) : undefined,
+      amountLabel: hasAmounts ? label(cells[2]!) : undefined,
     });
   }
   return rows;
@@ -400,6 +416,8 @@ export class UiSource implements DataSource {
                 address: wallet,
                 firstBuyAt: relativeTime(row.age),
                 firstBuyLabel: row.age,
+                firstBuyTotalLabel: row.totalLabel,
+                firstBuyAmountLabel: row.amountLabel,
                 tradeId: row.id,
                 fresh: row.fresh,
               };

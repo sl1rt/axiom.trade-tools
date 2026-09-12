@@ -90,7 +90,18 @@ export class Panel {
     this.render();
   }
   private walletLink(address: string) {
-    return `<button type="button" class="wallet-link" data-action="wallet" data-wallet="${esc(address)}" aria-label="Открыть кошелёк ${esc(address)} в Axiom" title="Открыть History в Axiom${this.running ? ' (анализ будет приостановлен)' : ''}" ${this.openingWallet ? 'disabled' : ''}>${esc(address)}</button>`;
+    const buyer = this.state?.buyers.find((buyer) => buyer.address === address);
+    const source = this.state?.context;
+    const sourceToken =
+      source?.symbol || source?.name || (source ? short(source.address) : 'исходный токен');
+    const amounts = [
+      buyer?.firstBuyTotalLabel ? `<span>Total: ${esc(buyer.firstBuyTotalLabel)}</span>` : '',
+      buyer?.firstBuyAmountLabel ? `<span>Amount: ${esc(buyer.firstBuyAmountLabel)}</span>` : '',
+    ].join('');
+    const hint = amounts
+      ? `Первая выбранная покупка исходного токена ${this.state?.context.symbol || ''}: Total — сумма, Amount — количество токенов; значения как в Trades.`
+      : 'Сумма покупки не сохранена. Запустите новый анализ, чтобы прочитать Total и Amount из Trades.';
+    return `<span class="wallet-entry"><button type="button" class="wallet-link" data-action="wallet" data-wallet="${esc(address)}" aria-label="Открыть кошелёк ${esc(address)} в Axiom" title="Открыть History в Axiom${this.running ? ' (анализ будет приостановлен)' : ''}" ${this.openingWallet ? 'disabled' : ''}>${esc(address)}</button><span class="wallet-amount" title="${esc(hint)}">${amounts || '<span>Вход: нет данных</span>'}<span class="wallet-source">(${esc(sourceToken)})</span></span></span>`;
   }
   update(context: TokenContext | null, state: ScanState | null, running: boolean) {
     this.context = context;
@@ -177,7 +188,7 @@ export class Panel {
     this.shadow.innerHTML = `<style>${css}</style>
       <button class="launcher ${this.open ? 'hidden' : ''}" data-action="toggle"><span class="mark">↗</span>Early Wallets${this.running ? '<span class="pulse"></span>' : ''}</button>
       <aside class="panel ${this.open ? '' : 'hidden'}" aria-label="Axiom Early Wallets">
-      <header class="header"><span class="mark">↗</span><div><div class="eyebrow">ЧЕРЕЗ ИНТЕРФЕЙС · 0.3.8</div><h1>Early Wallets</h1></div><button class="close" data-action="toggle" aria-label="Свернуть">×</button></header>
+      <header class="header"><span class="mark">↗</span><div><div class="eyebrow">ЧЕРЕЗ ИНТЕРФЕЙС · 0.3.9</div><h1>Early Wallets</h1></div><button class="close" data-action="toggle" aria-label="Свернуть">×</button></header>
       <div class="body"><div class="context"><div><div class="token-name">${esc(ctx.symbol || ctx.name || 'Первые покупатели')}</div><div class="small muted" title="${esc(ctx.address)}">${esc(short(ctx.address))}</div></div><span class="chain">${chainName[ctx.chain]}</span></div>
       <div class="settings"><label for="ew-wallet-limit">Кошельков<input id="ew-wallet-limit" name="walletLimit" type="number" min="1" max="200" value="${this.draft.walletLimit}" ${this.running ? 'disabled' : ''}></label><label for="ew-token-limit">Других токенов<input id="ew-token-limit" name="tokensPerWallet" type="number" min="1" max="20" value="${this.draft.tokensPerWallet}" ${this.running ? 'disabled' : ''}></label></div>
       <p class="rule">Age ↑ → History · Max → Opened ↓<br>Свежие открытия с покупками. Fresh-кошельки и исходный токен пропускаются.${this.running ? '<br>Дождитесь завершения: не меняйте таблицу и модалку.' : ''}</p>
