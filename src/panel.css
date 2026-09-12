@@ -350,6 +350,31 @@ td .address {
 .details div {
   padding: 4px 0;
 }
+.wallet-link {
+  display: inline-block;
+  max-width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #b5d4ff;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.wallet-link:hover {
+  color: #b3f477;
+}
+.wallet-link:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.wallet-link:focus-visible {
+  outline: 2px solid #b3f477;
+  outline-offset: 3px;
+}
 .details-row td {
   text-align: left;
 }

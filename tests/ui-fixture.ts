@@ -28,6 +28,8 @@ export function axiomPage(
     initialOpened?: 'Opened' | 'Opened ↑' | 'Opened ↓';
     freshWallet?: boolean;
     zeroBought?: boolean;
+    searchMode?: 'missing' | 'wrong-result' | 'wrong-modal' | 'wrong-chain';
+    searchDelayMs?: number;
   } = {},
 ): string {
   const explorer = chain === 'sol' ? 'solscan.io' : chain === 'bnb' ? 'bscscan.com' : 'rh-scan.com';
@@ -48,7 +50,7 @@ export function axiomPage(
   return `<!doctype html><html><head><title>T${n} ↑ $50K | Axiom ${chain}</title><style>
   body{background:#0b0c12;color:#ddd;font:14px Arial;margin:24px}button{background:#292c38;color:white;padding:8px;border:0;cursor:pointer}a{color:#b0dbff}.text-increase{color:#6ee799}.text-decrease{color:#ef6d78}.text-textTertiary{color:#999}.text-textSecondary{color:#aaa}.text-textPrimary{color:#fff}.overflow-y-auto{overflow-y:auto}#trades{height:160px;width:640px}.trade{height:24px;display:flex;gap:16px;align-items:center}.trade button{padding:0}#modal{position:fixed;left:12px;top:130px;background:#161823;border:1px solid #555;padding:14px;width:700px;z-index:99}#positions{height:220px}.position{height:60px;min-height:60px;display:flex;gap:15px}.position>a{width:150px}.position>div{width:100px}.position span{display:block}#head{display:flex;gap:8px;margin-bottom:20px}
   </style></head><body><h1>AXIOM · UI test fixture</h1><h2>T${n}　$50K</h2><a href="https://${explorer}/${chain === 'sol' ? 'token' : 'address'}/${addr(chain, n)}">CA</a>${marketCapHeader('$50K', '$125K')}
-  <section><div><button>All</button><button>Trades</button><button id="age">Age ↓</button></div><div id="trades" class="overflow-y-auto"></div></section>
+  <button id="search">Search by token or CA /</button><section><div><button>All</button><button>Trades</button><button id="age">Age ↓</button></div><div id="trades" class="overflow-y-auto"></div></section>
   <script>
   const cfg=${JSON.stringify(config)};
   const log = value => {document.body.dataset.actions = (document.body.dataset.actions || '') + value + '|';};
@@ -117,6 +119,35 @@ export function axiomPage(
       }
     };
   }
+  document.querySelector('#search').onclick=()=>{
+    log('Search'); const search=document.createElement('div'); search.id='search-modal';
+    search.style.cssText='position:fixed;left:12px;top:100px;width:700px;padding:16px;background:#151823;z-index:150';
+    search.innerHTML='<button id="wallet-filter" aria-pressed="false">Wallets</button><div><input placeholder="Search by name, ticker, CA, or wallet"><button id="search-close">Esc</button></div><div id="search-results"></div>';
+    document.body.append(search);
+    search.querySelector('#search-close').onclick=()=>search.remove();
+    search.querySelector('#wallet-filter').onclick=function(){this.setAttribute('aria-pressed','true');log('Wallets');};
+    const input=search.querySelector('input'), results=search.querySelector('#search-results');
+    input.oninput=()=>{
+      const query=input.value; log('Search input:'+query); results.innerHTML='Loading';results.setAttribute('aria-busy','true');
+      setTimeout(()=>{
+        if(!search.isConnected||input.value!==query)return;results.removeAttribute('aria-busy');results.innerHTML='';
+        const w=cfg.wallets.indexOf(query);
+        if(w<0||cfg.searchMode==='missing'){results.textContent='No wallets found';return;}
+        const wallet=cfg.wallets[w], row=document.createElement('div');row.className='cursor-pointer';
+        row.innerHTML='<div><span><button aria-label="Copy address"><span>'+wallet.slice(0,4)+'...'+wallet.slice(-4)+'</span><i class="ri-file-copy-line"></i></button></span></div><span>PnL $100 Win 50%</span>';
+        row.querySelector('button').onclick=e=>{
+          e.stopPropagation();
+          const value=cfg.searchMode==='wrong-result'?wallet.slice(0,10)+(wallet[10]==='a'?'b':'a')+wallet.slice(11):wallet;
+          navigator.clipboard.writeText(value);
+        };
+        row.onclick=()=>{
+          log('Search result:'+w);search.remove();openWallet(cfg.searchMode==='wrong-modal'?(w+1)%3:w);
+          if(cfg.searchMode==='wrong-chain')document.querySelector('#modal button[aria-label^="Open in"]').setAttribute('aria-label',cfg.chain==='bnb'?'Open in RH Scan':'Open in BSCScan');
+        };
+        results.append(row);
+      }, cfg.searchDelayMs??150);
+    };
+  };
   renderTrades();
   </script></body></html>`;
 }

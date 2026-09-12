@@ -2,7 +2,9 @@ import { test as base, expect, chromium, type BrowserContext, type Page } from '
 import { resolve } from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import type { Chain } from '../../src/types';
-import { addr, context } from '../fixtures';
+import { addr, context, historyToken } from '../fixtures';
+import { newScan } from '../../src/runner';
+import { pageIdentity } from '../../src/core';
 import { axiomPage, marketCapHeader } from '../ui-fixture';
 const test = base.extend<{ extension: BrowserContext }>({
   extension: async ({}, use, info) => {
@@ -38,6 +40,8 @@ async function setup(
     freshWallet?: boolean;
     zeroBought?: boolean;
     slowAthMs?: number;
+    searchMode?: 'missing' | 'wrong-result' | 'wrong-modal' | 'wrong-chain';
+    searchDelayMs?: number;
   } = {},
 ) {
   const unexpected: string[] = [];
@@ -469,3 +473,138 @@ for (const emptyWallet of [true, false])
     expect(actions).toContain('History:1');
     expect(actions).toContain('History:2');
   });
+
+async function savedWallets(
+  extension: BrowserContext,
+  chain: Chain,
+  behaviour: Parameters<typeof setup>[4] = {},
+) {
+  const result = await setup(extension, chain, false, false, behaviour);
+  const scan = newScan(context(chain), { walletLimit: 2, tokensPerWallet: 1 });
+  scan.buyers = [100, 101].map((n) => ({
+    address: addr(chain, n),
+    firstBuyAt: Date.now(),
+    tradeId: 'saved-' + n,
+  }));
+  scan.buyersCollected = scan.selectionComplete = true;
+  scan.status = 'complete';
+  scan.message = 'Готово';
+  scan.wallets = scan.buyers.map((buyer) => ({
+    buyer,
+    status: 'included',
+    tokens: [historyToken(2, chain)],
+    fetchedAt: Date.now(),
+  }));
+  const worker = extension.serviceWorkers()[0]!;
+  await worker.evaluate(
+    async ({ key, scan }) => {
+      await chrome.storage.local.set({ [key]: scan });
+    },
+    { key: 'ew.ui.scan.newest.no-fresh.' + pageIdentity(scan.context), scan },
+  );
+  await result.page.reload();
+  await result.page.getByRole('button', { name: 'Early Wallets', exact: false }).click();
+  await result.page.getByRole('button', { name: 'Показать 2 кошельков: T2', exact: true }).click();
+  return result;
+}
+const walletButton = (page: Page, chain: Chain, n: number) =>
+  page.getByRole('button', { name: 'Открыть кошелёк ' + addr(chain, n) + ' в Axiom', exact: true });
+
+for (const chain of ['bnb', 'sol', 'robinhood'] as const)
+  test(
+    'wallet links open saved addresses through Axiom search: ' + chain,
+    async ({ extension }) => {
+      const { page, unexpected } = await savedWallets(extension, chain, { closeDelayMs: 300 });
+      await walletButton(page, chain, 101).click();
+      await expect(page.locator('[data-wallet-message]')).toHaveText(
+        'History кошелька открыта в Axiom.',
+      );
+      await expect(page.locator('#modal')).toHaveAttribute('data-max', 'true');
+      await expect(page.locator('#modal #history')).toHaveAttribute('aria-selected', 'true');
+      expect(await page.locator('body').getAttribute('data-actions')).toContain(
+        'Search result:1|wallet:1|Max|History:1',
+      );
+      await walletButton(page, chain, 100).focus();
+      await walletButton(page, chain, 100).press('Enter');
+      await expect(page.locator('[data-wallet-message]')).toHaveText(
+        'History кошелька открыта в Axiom.',
+      );
+      await expect(page.locator('body')).toHaveAttribute(
+        'data-actions',
+        /Search result:0\|wallet:0\|Max\|History:0/,
+      );
+      await expect(page.locator('#modal #opened')).toHaveText('Opened ↓');
+      await expect(page.locator('#modal')).toHaveCount(1);
+      expect(unexpected).toEqual([]);
+    },
+  );
+
+for (const [mode, message] of [
+  ['missing', 'не показал этот кошелёк'],
+  ['wrong-result', 'Адрес результата поиска не совпал'],
+  ['wrong-modal', 'Открыт другой кошелёк'],
+  ['wrong-chain', 'другой сети'],
+] as const)
+  test('wallet links reject ' + mode + ' and allow retry', async ({ extension }) => {
+    const { page } = await savedWallets(extension, 'robinhood', { searchMode: mode });
+    await walletButton(page, 'robinhood', 100).click();
+    await expect(page.locator('[data-wallet-message]')).toContainText(message, { timeout: 14000 });
+    expect(await page.locator('body').getAttribute('data-actions')).not.toContain('History:');
+    await expect(walletButton(page, 'robinhood', 100)).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Новый анализ', exact: true })).toBeEnabled();
+  });
+
+test('wallet links cancel delayed search without opening its late result', async ({
+  extension,
+}) => {
+  const { page } = await savedWallets(extension, 'bnb', { searchDelayMs: 1400 });
+  await walletButton(page, 'bnb', 100).dblclick();
+  await expect(page.locator('#search-results')).toHaveAttribute('aria-busy', 'true');
+  await page.getByRole('button', { name: 'Отменить открытие', exact: true }).click();
+  await expect(page.locator('[data-wallet-message]')).toHaveText('Открытие кошелька отменено.');
+  await expect(page.locator('#search-results')).not.toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('#modal')).toHaveCount(0);
+  expect(
+    (await page.locator('body').getAttribute('data-actions'))?.match(/Search input:/g),
+  ).toHaveLength(1);
+});
+
+test('wallet links pause a running analysis and wait for its modal cleanup', async ({
+  extension,
+}) => {
+  const { page } = await setup(extension, 'robinhood', false, false, {
+    holdSecondHistory: true,
+    closeDelayMs: 350,
+  });
+  await analyze(page);
+  await expect(
+    page.getByRole('button', { name: 'Finish loading History', exact: true }),
+  ).toBeVisible({ timeout: 15000 });
+  await page.getByRole('button', { name: 'Показать 1 кошельков: T2', exact: true }).click();
+  await walletButton(page, 'robinhood', 100).click();
+  await expect(page.locator('[data-wallet-message]')).toHaveText(
+    'History кошелька открыта в Axiom.',
+    { timeout: 15000 },
+  );
+  await expect(
+    page.getByRole('button', { name: 'Продолжить / повторить', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('#modal')).toHaveCount(1);
+  expect(await page.locator('body').getAttribute('data-actions')).toContain(
+    'Search result:0|wallet:0|Max|History:0',
+  );
+});
+
+test('wallet links open an empty History without waiting for an Opened header', async ({
+  extension,
+}) => {
+  const { page } = await savedWallets(extension, 'robinhood', {
+    emptyWallet: true,
+    emptyNoHeader: true,
+  });
+  await walletButton(page, 'robinhood', 100).click();
+  await expect(page.locator('[data-wallet-message]')).toHaveText(
+    'History кошелька открыта в Axiom.',
+  );
+  await expect(page.locator('#modal')).toContainText('No historic positions');
+});

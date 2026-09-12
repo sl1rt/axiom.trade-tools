@@ -26,6 +26,8 @@ export interface PanelActions {
   resume: () => void;
   pause: () => void;
   export: () => void;
+  openWallet: (address: string) => void;
+  cancelWallet: () => void;
 }
 export class Panel {
   host: HTMLDivElement;
@@ -38,6 +40,8 @@ export class Panel {
   private context: TokenContext | null = null;
   private state: ScanState | null = null;
   private running = false;
+  private openingWallet: string | null = null;
+  private walletMessage = '';
   private draft: ScanOptions = { walletLimit: 50, tokensPerWallet: 5 };
   constructor(private actions: PanelActions) {
     this.host = document.createElement('div');
@@ -80,6 +84,14 @@ export class Panel {
       el.classList.remove('hidden');
     }
   }
+  walletProgress(address: string | null, message: string) {
+    this.openingWallet = address;
+    this.walletMessage = message;
+    this.render();
+  }
+  private walletLink(address: string) {
+    return `<button type="button" class="wallet-link" data-action="wallet" data-wallet="${esc(address)}" aria-label="Открыть кошелёк ${esc(address)} в Axiom" title="Открыть History в Axiom${this.running ? ' (анализ будет приостановлен)' : ''}" ${this.openingWallet ? 'disabled' : ''}>${esc(address)}</button>`;
+  }
   update(context: TokenContext | null, state: ScanState | null, running: boolean) {
     this.context = context;
     this.state = state;
@@ -104,6 +116,13 @@ export class Panel {
         break;
       case 'export':
         this.actions.export();
+        break;
+      case 'wallet':
+        if (!this.openingWallet && target.dataset.wallet)
+          this.actions.openWallet(target.dataset.wallet);
+        break;
+      case 'cancel-wallet':
+        this.actions.cancelWallet();
         break;
       case 'details': {
         const key = target.dataset.key!;
@@ -130,7 +149,7 @@ export class Panel {
     const focusSelector = active?.id
       ? `#${CSS.escape(active.id)}`
       : active?.dataset.action
-        ? `[data-action="${CSS.escape(active.dataset.action)}"]${active.dataset.key ? `[data-key="${CSS.escape(active.dataset.key)}"]` : ''}`
+        ? `[data-action="${CSS.escape(active.dataset.action)}"]${active.dataset.key ? `[data-key="${CSS.escape(active.dataset.key)}"]` : ''}${active.dataset.wallet ? `[data-wallet="${CSS.escape(active.dataset.wallet)}"]` : ''}`
         : null;
     const s = this.state,
       ctx = s?.context ?? this.context,
@@ -158,12 +177,13 @@ export class Panel {
     this.shadow.innerHTML = `<style>${css}</style>
       <button class="launcher ${this.open ? 'hidden' : ''}" data-action="toggle"><span class="mark">↗</span>Early Wallets${this.running ? '<span class="pulse"></span>' : ''}</button>
       <aside class="panel ${this.open ? '' : 'hidden'}" aria-label="Axiom Early Wallets">
-      <header class="header"><span class="mark">↗</span><div><div class="eyebrow">ЧЕРЕЗ ИНТЕРФЕЙС · 0.3.6</div><h1>Early Wallets</h1></div><button class="close" data-action="toggle" aria-label="Свернуть">×</button></header>
+      <header class="header"><span class="mark">↗</span><div><div class="eyebrow">ЧЕРЕЗ ИНТЕРФЕЙС · 0.3.7</div><h1>Early Wallets</h1></div><button class="close" data-action="toggle" aria-label="Свернуть">×</button></header>
       <div class="body"><div class="context"><div><div class="token-name">${esc(ctx.symbol || ctx.name || 'Первые покупатели')}</div><div class="small muted" title="${esc(ctx.address)}">${esc(short(ctx.address))}</div></div><span class="chain">${chainName[ctx.chain]}</span></div>
       <div class="settings"><label for="ew-wallet-limit">Кошельков<input id="ew-wallet-limit" name="walletLimit" type="number" min="1" max="200" value="${this.draft.walletLimit}" ${this.running ? 'disabled' : ''}></label><label for="ew-token-limit">Других токенов<input id="ew-token-limit" name="tokensPerWallet" type="number" min="1" max="20" value="${this.draft.tokensPerWallet}" ${this.running ? 'disabled' : ''}></label></div>
       <p class="rule">Age ↑ → History · Max → Opened ↓<br>Свежие открытия с покупками. Fresh-кошельки и исходный токен пропускаются.${this.running ? '<br>Дождитесь завершения: не меняйте таблицу и модалку.' : ''}</p>
-      <div class="actions">${this.running ? '<button class="primary" data-action="pause">Приостановить</button>' : `<button class="primary" data-action="start">${s ? 'Новый анализ' : 'Анализировать'}</button>${canResume ? '<button class="secondary" data-action="resume">Продолжить / повторить</button>' : ''}`}</div>
+      <div class="actions">${this.running ? '<button class="primary" data-action="pause">Приостановить</button>' : `<button class="primary" data-action="start" ${this.openingWallet ? 'disabled' : ''}>${s ? 'Новый анализ' : 'Анализировать'}</button>${canResume ? `<button class="secondary" data-action="resume" ${this.openingWallet ? 'disabled' : ''}>Продолжить / повторить</button>` : ''}`}</div>
       <div data-validation class="note hidden" role="alert"></div>
+      ${this.walletMessage ? `<div class="note" data-wallet-message aria-live="polite">${esc(this.walletMessage)}${this.openingWallet ? '<br><button type="button" class="secondary" data-action="cancel-wallet">Отменить открытие</button>' : ''}</div>` : ''}
       ${
         s
           ? `<div class="status ${s.status === 'error' ? 'state-error' : ''}" role="status">${esc(s.message)}<div class="bar"><div class="fill" style="width:${Math.min(100, progress)}%"></div></div></div>
@@ -174,7 +194,7 @@ export class Panel {
               .filter((w) => w.status === 'excluded')
               .map(
                 (w) =>
-                  `<p><span>${esc(w.buyer.address)}</span><br><span>${esc(exclusionLabels[w.exclusionReason!])}</span></p>`,
+                  `<p>${this.walletLink(w.buyer.address)}<br><span>${esc(exclusionLabels[w.exclusionReason!])}</span></p>`,
               )
               .join('')}</details>`
           : ''
@@ -192,7 +212,7 @@ export class Panel {
               .map((row) => {
                 const key = tokenKey(row.token),
                   q = row.quote;
-                return `<tr><td><a href="${esc(tokenUrl(row.token))}" target="_blank" rel="noopener noreferrer">${esc(row.token.symbol || row.token.name || short(row.token.address))}</a><span class="address" title="${esc(row.token.address)}">${esc(short(row.token.address))}</span></td><td><button class="count" data-action="details" data-key="${esc(key)}" aria-expanded="${this.expanded.has(key)}" aria-label="Показать ${row.count} кошельков: ${esc(row.token.symbol || short(row.token.address))}">${row.count}</button></td><td>${row.percentage.toFixed(1)}%</td><td title="${esc(q?.error ?? (q ? `Получено ${new Date(q.fetchedAt).toLocaleString('ru-RU')}; ${q.source === 'axiom-page-ath' ? 'округлённое значение страницы' : 'снимок Axiom'}` : ''))}">${q?.usd ? money(q.usd) : q ? 'Нет данных' : '…'}</td></tr>${this.expanded.has(key) ? `<tr class="details-row"><td colspan="4"><div class="details">${row.wallets.map((w) => `<div>${esc(w)}</div>`).join('')}</div></td></tr>` : ''}`;
+                return `<tr><td><a href="${esc(tokenUrl(row.token))}" target="_blank" rel="noopener noreferrer">${esc(row.token.symbol || row.token.name || short(row.token.address))}</a><span class="address" title="${esc(row.token.address)}">${esc(short(row.token.address))}</span></td><td><button class="count" data-action="details" data-key="${esc(key)}" aria-expanded="${this.expanded.has(key)}" aria-label="Показать ${row.count} кошельков: ${esc(row.token.symbol || short(row.token.address))}">${row.count}</button></td><td>${row.percentage.toFixed(1)}%</td><td title="${esc(q?.error ?? (q ? `Получено ${new Date(q.fetchedAt).toLocaleString('ru-RU')}; ${q.source === 'axiom-page-ath' ? 'округлённое значение страницы' : 'снимок Axiom'}` : ''))}">${q?.usd ? money(q.usd) : q ? 'Нет данных' : '…'}</td></tr>${this.expanded.has(key) ? `<tr class="details-row"><td colspan="4"><div class="details">${row.wallets.map((w) => `<div>${this.walletLink(w)}</div>`).join('')}</div></td></tr>` : ''}`;
               })
               .join(
                 '',
@@ -203,7 +223,7 @@ export class Panel {
         errors
           ? `<details class="errors"><summary>Ошибки кошельков (${errors})</summary>${s!.wallets
               .filter((w) => w.status === 'error')
-              .map((w) => `<p>${esc(w.buyer.address)}<br>${esc(w.error)}</p>`)
+              .map((w) => `<p>${this.walletLink(w.buyer.address)}<br>${esc(w.error)}</p>`)
               .join('')}</details>`
           : ''
       }

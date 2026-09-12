@@ -4,11 +4,14 @@ import { readQuoteFromPage } from './dom';
 import { Panel } from './panel';
 import { newScan, ScanRunner } from './runner';
 import { loadScan, saveScan } from './storage';
+import { openWalletFromSearch } from './wallet-open';
 import type { ScanOptions, ScanState, TokenContext, TokenRef } from './types';
 
 let context: TokenContext | null = null,
   state: ScanState | null = null,
   controller: AbortController | null = null;
+let walletController: AbortController | null = null;
+let scanFinished: Promise<void> = Promise.resolve();
 let generation = 0,
   lastUrl = '';
 const panel = new Panel({
@@ -18,12 +21,14 @@ const panel = new Panel({
   },
   pause: () => controller?.abort(),
   export: exportResults,
+  openWallet: (address) => void openWallet(address),
+  cancelWallet: () => walletController?.abort(),
 });
 function render() {
   panel.update(context, state, controller !== null);
 }
 async function start(options: ScanOptions) {
-  if (!context || controller) return;
+  if (!context || controller || walletController) return;
   try {
     state = newScan(context, options);
     await run(state);
@@ -32,7 +37,12 @@ async function start(options: ScanOptions) {
   }
 }
 async function run(scan: ScanState) {
-  if (controller) return;
+  if (controller || walletController) return;
+  panel.walletProgress(null, '');
+  let finish!: () => void;
+  scanFinished = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
   const currentGeneration = generation;
   const current = new AbortController();
   controller = current;
@@ -66,6 +76,36 @@ async function run(scan: ScanState) {
   } finally {
     if (controller === current) controller = null;
     render();
+    finish();
+  }
+}
+async function openWallet(address: string) {
+  if (!context || !state || walletController || !state.buyers.some((b) => b.address === address))
+    return;
+  const current = new AbortController();
+  const currentGeneration = generation;
+  const token = state.context;
+  walletController = current;
+  const progress = (message: string) => panel.walletProgress(address, message);
+  progress(controller ? 'Приостанавливаю анализ перед открытием кошелька…' : 'Открываю кошелёк…');
+  try {
+    controller?.abort();
+    await scanFinished;
+    await openWalletFromSearch(address, token, current.signal, progress);
+    if (currentGeneration === generation)
+      panel.walletProgress(null, 'History кошелька открыта в Axiom.');
+  } catch (error) {
+    if (currentGeneration === generation)
+      panel.walletProgress(
+        null,
+        current.signal.aborted
+          ? 'Открытие кошелька отменено.'
+          : error instanceof Error
+            ? error.message
+            : String(error),
+      );
+  } finally {
+    if (walletController === current) walletController = null;
   }
 }
 function exportResults() {
@@ -88,6 +128,8 @@ async function navigate() {
   }
   const currentGeneration = ++generation;
   controller?.abort();
+  walletController?.abort();
+  panel.walletProgress(null, '');
   context = next;
   state = null;
   render();
@@ -125,7 +167,10 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, reply) => {
   }
   return false;
 });
-window.addEventListener('pagehide', () => controller?.abort());
+window.addEventListener('pagehide', () => {
+  controller?.abort();
+  walletController?.abort();
+});
 window.addEventListener('popstate', () => void navigate());
 setInterval(() => void navigate(), 750);
 void navigate();
